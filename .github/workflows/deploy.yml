@@ -1,1 +1,172 @@
-# The pipeline (contracts P1-P11). Fill it in. Until it has on: and jobs:, GitHub shows it as an invalid workflow
+name: deploy
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "infra/**"
+      - ".github/workflows/**"
+  push:
+    branches: [main]
+    paths:
+      - "services/**"
+      - "infra/**"
+      - ".github/workflows/**"
+
+# Needed for OIDC (id-token) and for checkout (contents).
+# A called workflow cannot get more permissions than its caller.
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-north-1
+
+jobs:
+  # ------------------------------------------------------------ P3
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
+          terraform_wrapper: false
+
+      - name: fmt
+        run: terraform fmt -check -recursive -no-color
+
+      - name: init (no backend)
+        run: terraform init -backend=false -input=false -no-color
+
+      - name: validate
+        run: terraform validate -no-color
+
+  # ------------------------------------------------------------ P4
+  build:
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [vote, result, worker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Tags are immutable: if this commit was already pushed, skip the push.
+      - name: Does the image already exist?
+        id: exists
+        run: |
+          set +e
+          out=$(aws ecr describe-images \
+            --repository-name "${{ vars.NAME_PREFIX }}-${{ matrix.service }}" \
+            --image-ids imageTag=${{ github.sha }} 2>&1)
+          rc=$?
+          if [ $rc -eq 0 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif echo "$out" | grep -q ImageNotFoundException; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$out"
+            exit 1
+          fi
+
+      # Always build (a Pull Request checks that the image builds).
+      # Push only on main, and only if the tag is new.
+      - name: Build (and push on main)
+        uses: docker/build-push-action@v6
+        with:
+          context: services/${{ matrix.service }}
+          platforms: linux/amd64
+          push: ${{ github.event_name == 'push' && steps.exists.outputs.exists != 'true' }}
+          tags: ${{ steps.ecr.outputs.registry }}/${{ vars.NAME_PREFIX }}-${{ matrix.service }}:${{ github.sha }}
+
+  # ------------------------------------------------------------ P5
+  plan:
+    if: github.event_name == 'pull_request'
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, prod]
+    env:
+      TF_VAR_name_prefix: ${{ vars.NAME_PREFIX }}
+      TF_VAR_image_tag: ${{ github.sha }}
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
+          terraform_wrapper: false
+
+      - name: init
+        run: |
+          terraform init -reconfigure -input=false -no-color \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=voting-app/${{ matrix.env }}/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="use_lockfile=true"
+
+      # Read-only: -lock=false so that two PRs can plan at the same time.
+      - name: plan (never apply on a Pull Request)
+        run: |
+          terraform plan -input=false -no-color -lock=false \
+            -var-file=envs/${{ matrix.env }}.tfvars \
+            -out=plan.tfplan
+
+      - name: Show the plan in the job summary
+        run: |
+          {
+            echo "### terraform plan: ${{ matrix.env }}"
+            echo '```'
+            terraform show -no-color plan.tfplan
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------ P6
+  deploy-dev:
+    if: github.event_name == 'push'
+    needs: build
+    uses: ./.github/workflows/deploy-env.yml
+    with:
+      env: dev
+      image_tag: ${{ github.sha }}
+    secrets: inherit
+
+  # ------------------------------------------------------------ P7, P8
+  # Same image tag as dev (github.sha): nothing is rebuilt.
+  # The Environment "prod" (required reviewers) is used inside deploy-env.yml.
+  deploy-prod:
+    if: github.event_name == 'push'
+    needs: deploy-dev
+    uses: ./.github/workflows/deploy-env.yml
+    with:
+      env: prod
+      image_tag: ${{ github.sha }}
+    secrets: inherit
