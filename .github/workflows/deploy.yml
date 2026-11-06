@@ -21,7 +21,8 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: eu-north-1
+  # Optional repository variable AWS_REGION. Falls back to eu-north-1.
+  AWS_REGION: ${{ vars.AWS_REGION || 'eu-north-1' }}
 
 jobs:
   # ------------------------------------------------------------ P3
@@ -109,6 +110,7 @@ jobs:
     env:
       TF_VAR_name_prefix: ${{ vars.NAME_PREFIX }}
       TF_VAR_image_tag: ${{ github.sha }}
+      TF_VAR_region: ${{ vars.AWS_REGION || 'eu-north-1' }}
     defaults:
       run:
         working-directory: infra
@@ -170,3 +172,4 @@ jobs:
       env: prod
       image_tag: ${{ github.sha }}
     secrets: inherit
+    

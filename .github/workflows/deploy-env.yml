@@ -33,6 +33,9 @@ jobs:
 
     env:
       TF_IN_AUTOMATION: "true"
+      # Optional repository variable AWS_REGION. Falls back to eu-north-1.
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-north-1' }}
+      TF_VAR_region: ${{ vars.AWS_REGION || 'eu-north-1' }}
       TF_VAR_name_prefix: ${{ vars.NAME_PREFIX }}
       TF_VAR_image_tag: ${{ inputs.image_tag }}
 
@@ -46,7 +49,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: eu-north-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -58,7 +61,7 @@ jobs:
           terraform init -reconfigure -input=false -no-color \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
             -backend-config="key=voting-app/${{ inputs.env }}/terraform.tfstate" \
-            -backend-config="region=eu-north-1" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
             -backend-config="use_lockfile=true"
 
       - name: apply
@@ -95,3 +98,4 @@ jobs:
           else
             exit "$code"
           fi
+          

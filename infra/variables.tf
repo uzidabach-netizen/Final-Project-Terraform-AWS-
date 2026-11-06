@@ -9,6 +9,12 @@ variable "name_prefix" {
   }
 }
 
+variable "region" {
+  description = "AWS region to deploy to. Must be the same region as the bootstrap (ECR repositories)."
+  type        = string
+  default     = "eu-north-1"
+}
+
 variable "env" {
   description = "Environment name: dev or prod."
   type        = string
@@ -46,4 +52,5 @@ variable "option_b" {
   type        = string
   default     = "אייזנקוט"
 }
+
 
