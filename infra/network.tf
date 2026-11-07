@@ -241,6 +241,15 @@ resource "aws_lb_target_group" "result" {
     healthy_threshold   = 2
     unhealthy_threshold = 3
   }
+
+  # NEW: socket.io (long polling) needs every request of one browser
+  # to reach the same task. Without this, the result page stays blank
+  # when there are 2 tasks (prod).
+  stickiness {
+    type            = "lb_cookie"
+    enabled         = true
+    cookie_duration = 86400
+  }
 }
 
 resource "aws_lb_listener" "vote" {
@@ -264,4 +273,3 @@ resource "aws_lb_listener" "result" {
     target_group_arn = aws_lb_target_group.result.arn
   }
 }
-
