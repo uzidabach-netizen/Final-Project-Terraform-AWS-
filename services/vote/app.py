@@ -6,6 +6,8 @@ import random
 import json
 import logging
 
+#לשבור את הקוד 
+raise SystemExit(1)
 # The voting options have no default: they come only from the environment
 # (envs/<env>.tfvars -> Terraform -> task definition). A missing value fails at startup.
 option_a = os.environ['OPTION_A']
