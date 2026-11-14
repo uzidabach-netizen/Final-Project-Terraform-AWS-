@@ -9,6 +9,15 @@ var express = require('express'),
 
 var port = process.env.PORT || 4000;
 
+// The voting options have no default: they come only from the environment
+// (envs/<env>.tfvars -> Terraform -> task definition). A missing value fails at startup.
+var optionA = process.env.OPTION_A;
+var optionB = process.env.OPTION_B;
+if (!optionA || !optionB) {
+  console.error('OPTION_A and OPTION_B must be set');
+  process.exit(1);
+}
+
 io.on('connection', function (socket) {
 
   socket.emit('message', { text : 'Welcome!' });
@@ -78,6 +87,10 @@ app.use(express.static(__dirname + '/views'));
 app.get('/healthz', function (req, res) {
   // course change: a health check that does not depend on the database, for the load balancer
   res.status(200).send('ok');
+});
+
+app.get('/config', function (req, res) {
+  res.json({ optionA: optionA, optionB: optionB });
 });
 
 app.get('/', function (req, res) {

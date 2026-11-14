@@ -42,15 +42,21 @@ variable "desired_count" {
 }
 
 variable "option_a" {
-  description = "First voting option."
+  description = "First voting option. Set in envs/<env>.tfvars (no default: the env files are the single source of truth)."
   type        = string
-  default     = "ביבי"
+
+  validation {
+    condition     = length(trimspace(var.option_a)) > 0
+    error_message = "option_a must not be empty."
+  }
 }
 
 variable "option_b" {
-  description = "Second voting option."
+  description = "Second voting option. Set in envs/<env>.tfvars (no default: the env files are the single source of truth)."
   type        = string
-  default     = "אייזנקוט"
+
+  validation {
+    condition     = length(trimspace(var.option_b)) > 0
+    error_message = "option_b must not be empty."
+  }
 }
-
-

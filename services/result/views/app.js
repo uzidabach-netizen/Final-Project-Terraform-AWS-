@@ -4,9 +4,18 @@ var socket = io.connect();
 var bg1 = document.getElementById('background-stats-1');
 var bg2 = document.getElementById('background-stats-2');
 
-app.controller('statsCtrl', function($scope){
+app.controller('statsCtrl', function($scope, $http){
   $scope.aPercent = 50;
   $scope.bPercent = 50;
+  $scope.optionA = '';
+  $scope.optionB = '';
+
+  // The option names come from the server (OPTION_A / OPTION_B), not from this file.
+  $http.get('/config').then(function (res) {
+    $scope.optionA = res.data.optionA;
+    $scope.optionB = res.data.optionB;
+    document.title = res.data.optionA + ' vs ' + res.data.optionB + ' -- Result';
+  });
 
   var updateScores = function(){
     socket.on('scores', function (json) {

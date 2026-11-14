@@ -6,8 +6,10 @@ import random
 import json
 import logging
 
-option_a = os.getenv('OPTION_A',"עוזי")
-option_b = os.getenv('OPTION_B', "אייזנקוט")
+# The voting options have no default: they come only from the environment
+# (envs/<env>.tfvars -> Terraform -> task definition). A missing value fails at startup.
+option_a = os.environ['OPTION_A']
+option_b = os.environ['OPTION_B']
 hostname = socket.gethostname()
 
 # course change: the Redis address comes from the environment (ElastiCache endpoint on AWS)
@@ -59,3 +61,4 @@ def hello():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=80, debug=True, threaded=True)
+    

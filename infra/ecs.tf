@@ -20,6 +20,12 @@ locals {
   }
 
   public_subnet_ids = [for s in aws_subnet.public : s.id]
+
+  # The voting options come only from envs/<env>.tfvars. Shared by vote and result.
+  option_env = {
+    OPTION_A = var.option_a
+    OPTION_B = var.option_b
+  }
 }
 
 module "vote" {
@@ -33,11 +39,7 @@ module "vote" {
   security_group_ids = [aws_security_group.ecs.id]
   execution_role_arn = aws_iam_role.exec.arn
 
-  environment = {
-    REDIS_HOST = local.redis_host
-    OPTION_A   = var.option_a
-    OPTION_B   = var.option_b
-  }
+  environment = merge({ REDIS_HOST = local.redis_host }, local.option_env)
 
   container_port   = 80
   target_group_arn = aws_lb_target_group.vote.arn
@@ -59,7 +61,7 @@ module "result" {
   security_group_ids = [aws_security_group.ecs.id]
   execution_role_arn = aws_iam_role.exec.arn
 
-  environment = local.db_env
+  environment = merge(local.db_env, local.option_env)
   secrets     = local.db_secrets
 
   container_port   = 80
@@ -94,4 +96,3 @@ module "worker" {
     aws_secretsmanager_secret_version.db_password,
   ]
 }
-
