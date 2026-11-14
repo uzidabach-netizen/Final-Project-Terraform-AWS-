@@ -4,5 +4,5 @@ vpc_cidr      = "10.10.0.0/16"
 desired_count = 1
 
 # Voting options: the single source of truth (no defaults anywhere else)
-option_a = "עוזי"
+option_a = "ביבי"
 option_b = "אייזנקוט"
