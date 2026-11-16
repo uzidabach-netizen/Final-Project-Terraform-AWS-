@@ -6,5 +6,8 @@ node_modules/
 bin/
 obj/
 .env
-*.tfvars
+terraform.tfvars
+clean.sh
+destroy-all-final.sh
+all -in-1.md
 
